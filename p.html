@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factory Locator</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f0f0f0; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; }
+        .form-group { margin: 15px 0; }
+        select, input { padding: 8px; margin: 5px 0; width: 100%; box-sizing: border-box; }
+        button { background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #2980b9; }
+        #results-container { margin-top: 20px; padding: 15px; background: #ecf0f1; border-radius: 5px; }
+        ul { list-style: none; padding: 0; }
+        li { padding: 10px; margin: 5px 0; background: white; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Find Nearest Factories</h1>
+        
+        <div class="form-group">
+            <select id="location-type" onchange="showLocationField()">
+                <option value="">Select Location Type</option>
+                <option value="live">Live Location</option>
+                <option value="manual">Manual Coordinates</option>
+                <option value="predefined">Predefined Cities</option>
+            </select>
+        </div>
+
+        <div id="live-location" style="display: none;">
+            <button onclick="getLiveLocation()">Get Live Location</button>
+            <p id="live-location-display"></p>
+        </div>
+
+        <div id="manual-location" style="display: none;">
+            <input type="text" id="manual-coords" placeholder="Enter latitude,longitude">
+            <button onclick="setManualLocation()">Set Location</button>
+            <p id="manual-location-display"></p>
+        </div>
+
+        <div id="predefined-location" style="display: none;">
+            <select id="city-select" onchange="setPredefinedLocation()">
+                <option value="">Select City</option>
+                <option value="40.7128,-74.0060">New York</option>
+                <option value="34.0522,-118.2437">Los Angeles</option>
+                <option value="41.8781,-87.6298">Chicago</option>
+            </select>
+            <p id="predefined-location-display"></p>
+        </div>
+
+        <input type="hidden" id="final-location">
+        <button onclick="findNearestFactories()" style="width: 100%; margin-top: 15px;">Find Factories</button>
+        
+        <div id="results-container"></div>
+    </div>
+
+    <script>
+        const factories = [
+            {name: "New York", type: "Recycling", coords: [40.7128, -74.0060], inputs: "Cardboard, Plastic"},
+            {name: "Los Angeles", type: "Manufacturing", coords: [34.0522, -118.2437], inputs: "Glass, Metal"},
+            {name: "Chicago", type: "Cold Storage", coords: [41.8781, -87.6298], inputs: "Food Organics, Vegetation"},
+            {name: "Houston", type: "Waste Processing", coords: [29.7604, -95.3698], inputs: "Miscellaneous, Textile"},
+            {name: "Miami", type: "Paper Processing", coords: [25.7617, -80.1918], inputs: "Paper, Plastic"},
+            {name: "San Francisco", type: "Recycling", coords: [37.7749, -122.4194], inputs: "Glass, Metal"},
+            {name: "Boston", type: "Manufacturing", coords: [42.3601, -71.0589], inputs: "Cardboard, Paper"},
+            {name: "Seattle", type: "Composting", coords: [47.6062, -122.3321], inputs: "Food Organics, Vegetation"},
+            {name: "Denver", type: "Waste Processing", coords: [39.7392, -104.9903], inputs: "Miscellaneous, Plastic"},
+            {name: "Atlanta", type: "Recycling", coords: [33.7490, -84.3880], inputs: "Metal, Paper"}
+        ];
+
+        function showLocationField() {
+            const type = document.getElementById('location-type').value;
+            document.getElementById('live-location').style.display = type === 'live' ? 'block' : 'none';
+            document.getElementById('manual-location').style.display = type === 'manual' ? 'block' : 'none';
+            document.getElementById('predefined-location').style.display = type === 'predefined' ? 'block' : 'none';
+        }
+
+        function getLiveLocation() {
+            navigator.geolocation.getCurrentPosition(position => {
+                const coords = [position.coords.latitude, position.coords.longitude];
+                document.getElementById('final-location').value = coords;
+                document.getElementById('live-location-display').textContent = 
+                    `Location set to: ${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}`;
+            });
+        }
+
+        function setManualLocation() {
+            const coords = document.getElementById('manual-coords').value.split(',');
+            document.getElementById('final-location').value = coords;
+            document.getElementById('manual-location-display').textContent = 
+                `Location set to: ${coords[0]}, ${coords[1]}`;
+        }
+
+        function setPredefinedLocation() {
+            const coords = document.getElementById('city-select').value;
+            document.getElementById('final-location').value = coords;
+            document.getElementById('predefined-location-display').textContent = 
+                `Location set to: ${coords}`;
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        function findNearestFactories() {
+            const [userLat, userLon] = document.getElementById('final-location').value.split(',').map(Number);
+            if (!userLat || !userLon) return alert('Please set location first');
+
+            const results = factories.map(factory => {
+                const distance = calculateDistance(userLat, userLon, ...factory.coords);
+                return {...factory, distance};
+            }).sort((a, b) => a.distance - b.distance);
+
+            displayResults(results);
+        }
+
+        function displayResults(factories) {
+            const container = document.getElementById('results-container');
+            container.innerHTML = `<h3>Nearest Factories:</h3><ul>${
+                factories.map(factory => `
+                    <li>
+                        <strong>${factory.name}</strong><br>
+                        Type: ${factory.type}<br>
+                        Inputs: ${factory.inputs}<br>
+                        Distance: ${factory.distance.toFixed(2)} km
+                    </li>
+                `).join('')
+            }</ul>`;
+        }
+    </script>
+</body>
+</html>
